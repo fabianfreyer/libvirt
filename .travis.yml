@@ -1,0 +1,17 @@
+---
+language: c
+cache:
+  directories:
+    - .gnulib
+compiler:
+  - clang
+  - gcc
+install:
+  - sudo apt-get -qq update
+  - sudo apt-get install pkg-config libxml2-dev libgnutls-dev libdevmapper-dev libcurl4-gnutls-dev python-dev libpciaccess-dev libxen-dev libnl-dev libyajl-dev uuid-dev gettext xsltproc libxml-xpath-perl autopoint
+script:
+  - ./bootstrap
+  - ./configure
+  - make syntax-check
+  - make
+  - make check
