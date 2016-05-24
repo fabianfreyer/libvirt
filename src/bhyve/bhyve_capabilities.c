@@ -168,18 +168,12 @@ virBhyveProbeGrubCaps(virBhyveGrubCapsFlags *caps)
     return ret;
 }
 
-int
-virBhyveProbeCaps(unsigned int *caps)
+static int
+bhyveProbeCapsRTC_UTC(unsigned int *caps, char *binary)
 {
-    char *binary, *help;
+    char *help;
     virCommandPtr cmd = NULL;
     int ret = 0, exit;
-
-    binary = virFindFileInPath("bhyve");
-    if (binary == NULL)
-        goto out;
-    if (!virFileIsExecutable(binary))
-        goto out;
 
     cmd = virCommandNew(binary);
     virCommandAddArg(cmd, "-h");
@@ -195,6 +189,25 @@ virBhyveProbeCaps(unsigned int *caps)
  out:
     VIR_FREE(help);
     virCommandFree(cmd);
+    return ret;
+}
+
+int
+virBhyveProbeCaps(unsigned int *caps)
+{
+    char *binary;
+    int ret = 0;
+
+    binary = virFindFileInPath("bhyve");
+    if (binary == NULL)
+        goto out;
+    if (!virFileIsExecutable(binary))
+        goto out;
+
+    if ((ret = bhyveProbeCapsRTC_UTC(caps, binary)))
+        goto out;
+
+ out:
     VIR_FREE(binary);
     return ret;
 }
