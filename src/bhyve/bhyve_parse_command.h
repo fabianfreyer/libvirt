@@ -23,4 +23,8 @@
 #ifndef __BHYVE_PARSE_COMMAND_H__
 #define __BHYVE_PARSE_COMMAND_H__
 
+virDomainDefPtr bhyveParseCommandLineString(const char* nativeConfig,
+                                            virCapsPtr caps,
+                                            virDomainXMLOptionPtr xmlopt);
+
 #endif /* __BHYVE_PARSE_COMMAND_H__*/

@@ -55,6 +55,7 @@
 #include "bhyve_device.h"
 #include "bhyve_driver.h"
 #include "bhyve_command.h"
+#include "bhyve_parse_command.h"
 #include "bhyve_domain.h"
 #include "bhyve_process.h"
 #include "bhyve_capabilities.h"
@@ -1563,12 +1564,9 @@ bhyveConnectDomainXMLFromNative(virConnectPtr conn,
         goto cleanup;
     }
 
-    /* FIXME:
-     * Implement something along these lines:
-     *
-     * if (!(def = bhyveParseConfigString(nativeConfig, caps, driver->xmlopt)))
-     *  goto cleanup;
-     */
+     def = bhyveParseCommandLineString(nativeConfig, caps, privconn->xmlopt);
+     if (def == NULL)
+       goto cleanup;
 
     xml = virDomainDefFormat(def, caps, 0);
 
