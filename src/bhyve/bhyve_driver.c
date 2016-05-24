@@ -1536,6 +1536,48 @@ bhyveConnectIsEncrypted(virConnectPtr conn ATTRIBUTE_UNUSED)
     return 0;
 }
 
+static char *
+bhyveConnectDomainXMLFromNative(virConnectPtr conn,
+                                const char *nativeFormat,
+                                const char *nativeConfig ATTRIBUTE_UNUSED, /* for now, until implemented */
+                                unsigned int flags)
+{
+    char *xml = NULL;
+    virDomainDefPtr def = NULL;
+    bhyveConnPtr privconn = conn->privateData;
+    virCapsPtr caps = NULL;
+
+    virCheckFlags(0, NULL);
+
+    if (virConnectDomainXMLFromNativeEnsureACL(conn) < 0)
+        goto cleanup;
+
+    caps = bhyveDriverGetCapabilities(privconn);
+
+    if (!caps)
+        goto cleanup;
+
+    if (STRNEQ(nativeFormat, BHYVE_CONFIG_FORMAT_ARGV)) {
+        virReportError(VIR_ERR_INVALID_ARG,
+                       _("unsupported config type %s"), nativeFormat);
+        goto cleanup;
+    }
+
+    /* FIXME:
+     * Implement something along these lines:
+     *
+     * if (!(def = bhyveParseConfigString(nativeConfig, caps, driver->xmlopt)))
+     *  goto cleanup;
+     */
+
+    xml = virDomainDefFormat(def, caps, 0);
+
+ cleanup:
+    virObjectUnref(caps);
+    virDomainDefFree(def);
+    return xml;
+}
+
 static virHypervisorDriver bhyveHypervisorDriver = {
     .name = "bhyve",
     .connectOpen = bhyveConnectOpen, /* 1.2.2 */
@@ -1589,6 +1631,7 @@ static virHypervisorDriver bhyveHypervisorDriver = {
     .connectIsAlive = bhyveConnectIsAlive, /* 1.3.5 */
     .connectIsSecure = bhyveConnectIsSecure, /* 1.3.5 */
     .connectIsEncrypted = bhyveConnectIsEncrypted, /* 1.3.5 */
+    .connectDomainXMLFromNative = bhyveConnectDomainXMLFromNative, /* 1.3.5 */
 };
 
 
