@@ -192,6 +192,31 @@ bhyveProbeCapsRTC_UTC(unsigned int *caps, char *binary)
     return ret;
 }
 
+static int
+bhyveProbeCapsLPC_Bootrom(unsigned int *caps, char *binary)
+{
+    char *error;
+    virCommandPtr cmd = NULL;
+    int ret = 0, exit;
+
+    cmd = virCommandNew(binary);
+    virCommandAddArgList(cmd, "-l", "bootrom", NULL);
+    virCommandSetErrorBuffer(cmd, &error);
+    if (virCommandRun(cmd, &exit) < 0) {
+        ret = -1;
+        goto out;
+    }
+
+    if (strstr(error, "bhyve: invalid lpc device configuration 'bootrom'") == NULL)
+        *caps |= BHYVE_CAP_LPC_BOOTROM;
+
+ out:
+    VIR_FREE(error);
+    virCommandFree(cmd);
+    return ret;
+}
+
+
 int
 virBhyveProbeCaps(unsigned int *caps)
 {
@@ -205,6 +230,9 @@ virBhyveProbeCaps(unsigned int *caps)
         goto out;
 
     if ((ret = bhyveProbeCapsRTC_UTC(caps, binary)))
+        goto out;
+
+    if ((ret = bhyveProbeCapsLPC_Bootrom(caps, binary)))
         goto out;
 
  out:

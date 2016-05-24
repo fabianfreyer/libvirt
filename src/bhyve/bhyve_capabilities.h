@@ -38,6 +38,7 @@ typedef enum {
 
 typedef enum {
     BHYVE_CAP_RTC_UTC = 1,
+    BHYVE_CAP_LPC_BOOTROM = 2,
 } virBhyveCapsFlags;
 
 int virBhyveProbeGrubCaps(virBhyveGrubCapsFlags *caps);
