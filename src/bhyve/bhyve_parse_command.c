@@ -189,7 +189,7 @@ bhyveCommandLine2argv(const char *nativeConfig,
             for (j = 0; j < args_count; j++)
                 _bhyve_argv[j] = arglist[j];
             _bhyve_argv[j] = NULL;
-            *bhyve_argc = args_count;
+            *bhyve_argc = args_count-1;
         }
         else if (STREQ(arglist[0], "/usr/sbin/bhyveload")
                  || STREQ(arglist[0], "/usr/sbin/grub-bhyve")) {
@@ -199,7 +199,7 @@ bhyveCommandLine2argv(const char *nativeConfig,
             for (j = 0; j < args_count; j++)
                 _loader_argv[j] = arglist[j];
             _loader_argv[j] = NULL;
-            *loader_argc = args_count;
+            *loader_argc = args_count-1;
         }
         virStringFreeList(arglist);
     }
