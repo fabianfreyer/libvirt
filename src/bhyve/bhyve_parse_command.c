@@ -3,6 +3,7 @@
  *
  * Copyright (C) 2006-2016 Red Hat, Inc.
  * Copyright (C) 2006 Daniel P. Berrange
+ * Copyright (c) 2011 NetApp, Inc.
  * Copyright (C) 2016 Fabian Freyer
  *
  * This library is free software; you can redistribute it and/or
@@ -23,6 +24,7 @@
  */
 
 #include <config.h>
+#include <getopt.h>
 
 #include "bhyve_capabilities.h"
 #include "bhyve_command.h"
@@ -228,6 +230,136 @@ bhyveCommandLine2argv(const char *nativeConfig,
     return -1;
 }
 
+/*
+ * Parse the /usr/bin/bhyve command line. Parts of this are taken from the
+ * FreeBSD source code, specifically from usr.sbin/bhyve/bhyverun.c, which
+ * is licensed under the following license:
+ *
+ * Copyright (c) 2011 NetApp, Inc.
+ * All rights reserved.
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions
+ * are met:
+ * 1. Redistributions of source code must retain the above copyright
+ *    notice, this list of conditions and the following disclaimer.
+ * 2. Redistributions in binary form must reproduce the above copyright
+ *    notice, this list of conditions and the following disclaimer in the
+ *    documentation and/or other materials provided with the distribution.
+ *
+ * THIS SOFTWARE IS PROVIDED BY NETAPP, INC ``AS IS'' AND
+ * ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+ * ARE DISCLAIMED.  IN NO EVENT SHALL NETAPP, INC OR CONTRIBUTORS BE LIABLE
+ * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+ * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS
+ * OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
+ * HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
+ * LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY
+ * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
+ * SUCH DAMAGE.
+ */
+static int
+bhyveParseBhyveCommandLine(virDomainDefPtr def, int argc, char **argv)
+{
+    int c;
+    const char optstr[] = "abehuwxACHIPSWYp:g:c:s:m:l:U:";
+
+    if (!argv)
+        goto error;
+
+    while ((c = getopt(argc, argv, optstr)) != -1) {
+        switch (c) {
+        case 'a':
+            // x2apic_mode = 0;
+            break;
+        case 'A':
+            // acpi = 1;
+            break;
+        case 'b':
+            // bvmcons = 1;
+            break;
+        case 'p':
+            // if (pincpu_parse(optarg) != 0) {
+            //     errx(EX_USAGE, "invalid vcpu pinning "
+            //          "configuration '%s'", optarg);
+            // }
+            break;
+        case 'c':
+            // guest_ncpus = atoi(optarg);
+            break;
+        case 'C':
+            // memflags |= VM_MEM_F_INCORE;
+            break;
+        case 'g':
+            // gdb_port = atoi(optarg);
+            break;
+        case 'l':
+            // if (lpc_device_parse(optarg) != 0) {
+            //     errx(EX_USAGE, "invalid lpc device "
+            //         "configuration '%s'", optarg);
+            // }
+            break;
+        case 's':
+            // if (pci_parse_slot(optarg) != 0)
+            //     exit(1);
+            // else
+            break;
+        case 'S':
+            // memflags |= VM_MEM_F_WIRED;
+            break;
+        case 'm':
+            // error = vm_parse_memsize(optarg, &memsize);
+            // if (error)
+            //     errx(EX_USAGE, "invalid memsize '%s'", optarg);
+            break;
+        case 'H':
+            // guest_vmexit_on_hlt = 1;
+            break;
+        case 'I':
+            /*
+             * The "-I" option was used to add an ioapic to the
+             * virtual machine.
+             *
+             * An ioapic is now provided unconditionally for each
+             * virtual machine and this option is now deprecated.
+             */
+            break;
+        case 'P':
+            // guest_vmexit_on_pause = 1;
+            break;
+        case 'e':
+            // strictio = 1;
+            break;
+        case 'u':
+            // rtc_localtime = 0;
+            break;
+        case 'U':
+            // guest_uuid_str = optarg;
+            break;
+        case 'w':
+            // strictmsr = 0;
+            break;
+        case 'W':
+            // virtio_msix = 0;
+            break;
+        case 'x':
+            // x2apic_mode = 1;
+            break;
+        case 'Y':
+            // mptgen = 0;
+            break;
+        }
+    }
+
+    if (argc != optind)
+        goto error;
+
+    return 0;
+error:
+    return -1;
+}
+
 virDomainDefPtr
 bhyveParseCommandLineString(const char* nativeConfig,
                             virCapsPtr caps ATTRIBUTE_UNUSED, /* For now. */
@@ -242,6 +374,9 @@ bhyveParseCommandLineString(const char* nativeConfig,
     if (bhyveCommandLine2argv(nativeConfig,
                               &loader_argc, &loader_argv,
                               &bhyve_argc, &bhyve_argv))
+        goto cleanup;
+
+    if (bhyveParseBhyveCommandLine(def, bhyve_argc, bhyve_argv))
         goto cleanup;
 
 cleanup:
