@@ -92,7 +92,9 @@ bhyveParseCommandLineUnescape(const char *command)
  */
 static int
 bhyveCommandLine2argv(const char *nativeConfig,
+                      int *loader_argc,
                       char ***loader_argv,
+                      int *bhyve_argc,
                       char ***bhyve_argv)
 {
     const char *curr = NULL;
@@ -181,19 +183,23 @@ bhyveCommandLine2argv(const char *nativeConfig,
         }
 
         if (STREQ(arglist[0], "/usr/sbin/bhyve")) {
-            if (VIR_REALLOC_N(_bhyve_argv, args_count + 1) < 0)
+            if ((VIR_REALLOC_N(_bhyve_argv, args_count + 1) < 0)
+                || (!bhyve_argc))
                 goto error;
             for (j = 0; j < args_count; j++)
                 _bhyve_argv[j] = arglist[j];
             _bhyve_argv[j] = NULL;
+            *bhyve_argc = args_count;
         }
         else if (STREQ(arglist[0], "/usr/sbin/bhyveload")
                  || STREQ(arglist[0], "/usr/sbin/grub-bhyve")) {
-            if (VIR_REALLOC_N(_loader_argv, args_count + 1) < 0)
+            if ((VIR_REALLOC_N(_loader_argv, args_count + 1) < 0)
+                || (!loader_argc))
                 goto error;
             for (j = 0; j < args_count; j++)
                 _loader_argv[j] = arglist[j];
             _loader_argv[j] = NULL;
+            *loader_argc = args_count;
         }
         virStringFreeList(arglist);
     }
@@ -217,10 +223,14 @@ bhyveParseCommandLineString(const char* nativeConfig,
                             virDomainXMLOptionPtr xmlopt ATTRIBUTE_UNUSED)
 {
     virDomainDefPtr def = NULL;
+    int bhyve_argc = 0;
     char **bhyve_argv = NULL;
+    int loader_argc = 0;
     char **loader_argv = NULL;
 
-    if (bhyveCommandLine2argv(nativeConfig, &bhyve_argv, &loader_argv))
+    if (bhyveCommandLine2argv(nativeConfig,
+                              &loader_argc, &loader_argv,
+                              &bhyve_argc, &bhyve_argv))
         goto cleanup;
 
 cleanup:
