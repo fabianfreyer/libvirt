@@ -1,6 +1,8 @@
 /*
  * bhyve_parse_command.c: Bhyve command parser
  *
+ * Copyright (C) 2006-2016 Red Hat, Inc.
+ * Copyright (C) 2006 Daniel P. Berrange
  * Copyright (C) 2016 Fabian Freyer
  *
  * This library is free software; you can redistribute it and/or
@@ -28,6 +30,8 @@
 #include "viralloc.h"
 #include "virlog.h"
 #include "virstring.h"
+#include "virutil.h"
+#include "c-ctype.h"
 
 #define VIR_FROM_THIS VIR_FROM_BHYVE
 
@@ -87,17 +91,20 @@ bhyveParseCommandLineUnescape(const char *command)
  * Try to extract loader and bhyve argv lists from a command line string.
  */
 static int
-bhyveParseCommandLine2argv(const char *nativeConfig,
-                           char ***loader_argv ATTRIBUTE_UNUSED,
-                           char ***bhyve_argv ATTRIBUTE_UNUSED)
+bhyveCommandLine2argv(const char *nativeConfig,
+                      char ***loader_argv,
+                      char ***bhyve_argv)
 {
-    int ret = 0;
-    char *curr = NULL;
+    const char *curr = NULL;
     char *nativeConfig_unescaped = NULL;
     const char *start;
+    const char *next;
+    char *line;
     char **lines = NULL;
     size_t line_count = 0;
     size_t lines_alloc = 0;
+    char **_bhyve_argv = NULL;
+    char **_loader_argv = NULL;
 
     nativeConfig_unescaped = bhyveParseCommandLineUnescape(nativeConfig);
     if (nativeConfig_unescaped == NULL)
@@ -107,22 +114,19 @@ bhyveParseCommandLine2argv(const char *nativeConfig,
 
     /* Iterate over string, splitting on sequences of '\n' */
     while (curr && *curr != '\0') {
-        char *line;
-        const char *next;
-
         start = curr;
         next = strchr(curr, '\n');
 
         if (VIR_STRNDUP(line, curr, next ? next - curr : -1) < 0)
             goto error;
 
-        if (VIR_RESIZE_N(lines, lines_alloc, linecount, 2) < 0) {
+        if (VIR_RESIZE_N(lines, lines_alloc, line_count, 2) < 0) {
             VIR_FREE(line);
             goto error;
         }
 
-        lines[argcount++] = line;
-        lines[argcount] = NULL;
+        if (*line) lines[line_count++] = line;
+        lines[line_count] = NULL;
 
         while (next && (*next == '\n' || *next == '\r'
                         || STRPREFIX(next, "\r\n")))
@@ -131,11 +135,78 @@ bhyveParseCommandLine2argv(const char *nativeConfig,
         curr = next;
     }
 
+    for (int i = 0; i < line_count; i++) {
+        curr = lines[i];
+        int j;
+        char **arglist = NULL;
+        size_t args_count = 0;
+        size_t args_alloc = 0;
+
+        /* iterate over each line, splitting on sequences of ' '. This code is
+         * adapted from qemu/qemu_parse_command.c. */
+        while (curr && *curr != '\0') {
+            char *arg;
+            start = curr;
+
+            if (*start == '\'') {
+                if (start == curr)
+                    curr++;
+                next = strchr(start + 1, '\'');
+            } else if (*start == '"') {
+                if (start == curr)
+                    curr++;
+                next = strchr(start + 1, '"');
+            } else {
+                next = strchr(start, ' ');
+            }
+
+            if (VIR_STRNDUP(arg, curr, next ? next - curr : -1) < 0)
+                goto error;
+
+            if (next && (*next == '\'' || *next == '"'))
+                next++;
+
+            if (VIR_RESIZE_N(arglist, args_alloc, args_count, 2) < 0) {
+                VIR_FREE(arg);
+                goto error;
+            }
+
+            arglist[args_count++] = arg;
+            arglist[args_count] = NULL;
+
+            while (next && c_isspace(*next))
+                next++;
+
+            curr = next;
+        }
+
+        if (STREQ(arglist[0], "/usr/sbin/bhyve")) {
+            if (VIR_REALLOC_N(_bhyve_argv, args_count + 1) < 0)
+                goto error;
+            for (j = 0; j < args_count; j++)
+                _bhyve_argv[j] = arglist[j];
+            _bhyve_argv[j] = NULL;
+        }
+        else if (STREQ(arglist[0], "/usr/sbin/bhyveload")
+                 || STREQ(arglist[0], "/usr/sbin/grub-bhyve")) {
+            if (VIR_REALLOC_N(_loader_argv, args_count + 1) < 0)
+                goto error;
+            for (j = 0; j < args_count; j++)
+                _loader_argv[j] = arglist[j];
+            _loader_argv[j] = NULL;
+        }
+        virStringFreeList(arglist);
+    }
+
+    *loader_argv = _loader_argv;
+    *bhyve_argv = _bhyve_argv;
+
+    virStringFreeList(lines);
     return 0;
 
  error:
-    VIR_FREE(loader_argv);
-    VIR_FREE(bhyve_argc);
+    virStringFreeList(_loader_argv);
+    virStringFreeList(_bhyve_argv);
     virStringFreeList(lines);
     return -1;
 }
