@@ -371,6 +371,9 @@ bhyveParseCommandLineString(const char* nativeConfig,
     int loader_argc = 0;
     char **loader_argv = NULL;
 
+    if (!(def = virDomainDefNew()))
+        goto cleanup;
+
     if (bhyveCommandLine2argv(nativeConfig,
                               &loader_argc, &loader_argv,
                               &bhyve_argc, &bhyve_argv))
