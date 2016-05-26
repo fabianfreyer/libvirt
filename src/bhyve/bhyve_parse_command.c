@@ -182,7 +182,15 @@ bhyveCommandLine2argv(const char *nativeConfig,
             curr = next;
         }
 
-        if (STREQ(arglist[0], "/usr/sbin/bhyve")) {
+        /*
+         * To prevent a memory leak here, only set the argument lists when
+         * the first matching command is found. This shouldn't really be a
+         * problem, since usually no multiple loaders or bhyverun commands
+         * are specified (this wouldn't really be valid anyways).
+         * Otherwise, later argument lists may be assigned to _argv without
+         * freeing the earlier ones.
+         */
+        if (!_bhyve_argv && STREQ(arglist[0], "/usr/sbin/bhyve")) {
             if ((VIR_REALLOC_N(_bhyve_argv, args_count + 1) < 0)
                 || (!bhyve_argc))
                 goto error;
@@ -191,8 +199,8 @@ bhyveCommandLine2argv(const char *nativeConfig,
             _bhyve_argv[j] = NULL;
             *bhyve_argc = args_count-1;
         }
-        else if (STREQ(arglist[0], "/usr/sbin/bhyveload")
-                 || STREQ(arglist[0], "/usr/sbin/grub-bhyve")) {
+        else if (!_loader_argv && (STREQ(arglist[0], "/usr/sbin/bhyveload")
+                 || STREQ(arglist[0], "/usr/sbin/grub-bhyve"))) {
             if ((VIR_REALLOC_N(_loader_argv, args_count + 1) < 0)
                 || (!loader_argc))
                 goto error;
@@ -201,7 +209,10 @@ bhyveCommandLine2argv(const char *nativeConfig,
             _loader_argv[j] = NULL;
             *loader_argc = args_count-1;
         }
-        virStringFreeList(arglist);
+        /* To prevent a use-after-free here, only free the argument list when it is
+         * definitely not going to be used */
+        else
+                virStringFreeList(arglist);
     }
 
     *loader_argv = _loader_argv;
@@ -211,8 +222,8 @@ bhyveCommandLine2argv(const char *nativeConfig,
     return 0;
 
  error:
-    virStringFreeList(_loader_argv);
-    virStringFreeList(_bhyve_argv);
+    VIR_FREE(_loader_argv);
+    VIR_FREE(_bhyve_argv);
     virStringFreeList(lines);
     return -1;
 }
