@@ -83,6 +83,62 @@ bhyveParseCommandLineUnescape(const char *command)
     return unescaped;
 }
 
+/**
+ * Try to extract loader and bhyve argv lists from a command line string.
+ */
+static int
+bhyveParseCommandLine2argv(const char *nativeConfig,
+                           char ***loader_argv ATTRIBUTE_UNUSED,
+                           char ***bhyve_argv ATTRIBUTE_UNUSED)
+{
+    int ret = 0;
+    char *curr = NULL;
+    char *nativeConfig_unescaped = NULL;
+    const char *start;
+    char **lines = NULL;
+    size_t line_count = 0;
+    size_t lines_alloc = 0;
+
+    nativeConfig_unescaped = bhyveParseCommandLineUnescape(nativeConfig);
+    if (nativeConfig_unescaped == NULL)
+        goto error;
+
+    curr = nativeConfig_unescaped;
+
+    /* Iterate over string, splitting on sequences of '\n' */
+    while (curr && *curr != '\0') {
+        char *line;
+        const char *next;
+
+        start = curr;
+        next = strchr(curr, '\n');
+
+        if (VIR_STRNDUP(line, curr, next ? next - curr : -1) < 0)
+            goto error;
+
+        if (VIR_RESIZE_N(lines, lines_alloc, linecount, 2) < 0) {
+            VIR_FREE(line);
+            goto error;
+        }
+
+        lines[argcount++] = line;
+        lines[argcount] = NULL;
+
+        while (next && (*next == '\n' || *next == '\r'
+                        || STRPREFIX(next, "\r\n")))
+            next++;
+
+        curr = next;
+    }
+
+    return 0;
+
+ error:
+    VIR_FREE(loader_argv);
+    VIR_FREE(bhyve_argc);
+    virStringFreeList(lines);
+    return -1;
+}
 
 virDomainDefPtr
 bhyveParseCommandLineString(const char* nativeConfig,
@@ -90,10 +146,10 @@ bhyveParseCommandLineString(const char* nativeConfig,
                             virDomainXMLOptionPtr xmlopt ATTRIBUTE_UNUSED)
 {
     virDomainDefPtr def = NULL;
-    char *unescaped = NULL;
+    char **bhyve_argv = NULL;
+    char **loader_argv = NULL;
 
-    unescaped = bhyveParseCommandLineUnescape(nativeConfig);
-    if (unescaped == NULL)
+    if (bhyveCommandLine2argv(nativeConfig, &bhyve_argv, &loader_argv))
         goto cleanup;
 
 cleanup:
