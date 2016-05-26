@@ -264,6 +264,7 @@ bhyveParseBhyveCommandLine(virDomainDefPtr def, int argc, char **argv)
 {
     int c;
     const char optstr[] = "abehuwxACHIPSWYp:g:c:s:m:l:U:";
+    int vcpus = 1;
 
     if (!argv)
         goto error;
@@ -287,7 +288,13 @@ bhyveParseBhyveCommandLine(virDomainDefPtr def, int argc, char **argv)
             // }
             break;
         case 'c':
-            // guest_ncpus = atoi(optarg);
+            /* -c: # cpus (default 1) */
+            if (virStrToLong_i(optarg, NULL, 10, &vcpus) < 0)
+                goto error;
+            if (virDomainDefSetVcpusMax(def, vcpus) < 0)
+                goto error;
+            if (virDomainDefSetVcpus(def, vcpus) < 0)
+                goto error;
             break;
         case 'C':
             // memflags |= VM_MEM_F_INCORE;
