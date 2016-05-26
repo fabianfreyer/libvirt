@@ -268,6 +268,7 @@ bhyveParseBhyveCommandLine(virDomainDefPtr def, int argc, char **argv)
     if (!argv)
         goto error;
 
+    optind = 1;
     while ((c = getopt(argc, argv, optstr)) != -1) {
         switch (c) {
         case 'a':
@@ -353,6 +354,14 @@ bhyveParseBhyveCommandLine(virDomainDefPtr def, int argc, char **argv)
     }
 
     if (argc != optind)
+        goto error;
+
+    if (def->name == NULL)
+        def->name = argv[argc];
+    else if (STRNEQ(def->name, argv[argc]))
+        /* the vm name of the loader and the bhyverun command differ, throw an
+         * error here
+         * FIXME: Print a more verbose error message. */
         goto error;
 
     return 0;
