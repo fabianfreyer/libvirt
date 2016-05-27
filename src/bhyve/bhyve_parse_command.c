@@ -425,6 +425,12 @@ bhyveParseCommandLineString(const char* nativeConfig,
         goto cleanup;
 
     // Initialize defaults.
+    if (virUUIDGenerate(def->uuid) < 0) {
+        virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
+                       _("failed to generate uuid"));
+        goto cleanup;
+    }
+    def->id = -1;
     def->clock.offset = VIR_DOMAIN_CLOCK_OFFSET_LOCALTIME;
 
     if (bhyveCommandLine2argv(nativeConfig,
