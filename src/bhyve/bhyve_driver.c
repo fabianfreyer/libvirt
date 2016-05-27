@@ -1546,16 +1546,17 @@ bhyveConnectDomainXMLFromNative(virConnectPtr conn,
     char *xml = NULL;
     virDomainDefPtr def = NULL;
     bhyveConnPtr privconn = conn->privateData;
-    virCapsPtr caps = NULL;
+    virCapsPtr capabilities = NULL;
+    unsigned caps = bhyveDriverGetCaps(conn);
 
     virCheckFlags(0, NULL);
 
     if (virConnectDomainXMLFromNativeEnsureACL(conn) < 0)
         goto cleanup;
 
-    caps = bhyveDriverGetCapabilities(privconn);
+    capabilities = bhyveDriverGetCapabilities(privconn);
 
-    if (!caps)
+    if (!capabilities)
         goto cleanup;
 
     if (STRNEQ(nativeFormat, BHYVE_CONFIG_FORMAT_ARGV)) {
@@ -1568,10 +1569,10 @@ bhyveConnectDomainXMLFromNative(virConnectPtr conn,
      if (def == NULL)
        goto cleanup;
 
-    xml = virDomainDefFormat(def, caps, 0);
+    xml = virDomainDefFormat(def, capabilities, 0);
 
  cleanup:
-    virObjectUnref(caps);
+    virObjectUnref(capabilities);
     virDomainDefFree(def);
     return xml;
 }

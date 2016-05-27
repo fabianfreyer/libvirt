@@ -401,7 +401,7 @@ error:
 
 virDomainDefPtr
 bhyveParseCommandLineString(const char* nativeConfig,
-                            virCapsPtr caps ATTRIBUTE_UNUSED, /* For now. */
+                            unsigned caps,
                             virDomainXMLOptionPtr xmlopt ATTRIBUTE_UNUSED)
 {
     virDomainDefPtr def = NULL;
