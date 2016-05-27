@@ -263,7 +263,9 @@ bhyveCommandLine2argv(const char *nativeConfig,
  * SUCH DAMAGE.
  */
 static int
-bhyveParseBhyveCommandLine(virDomainDefPtr def, int argc, char **argv)
+bhyveParseBhyveCommandLine(virDomainDefPtr def,
+                           unsigned caps,
+                           int argc, char **argv)
 {
     int c;
     const char optstr[] = "abehuwxACHIPSWYp:g:c:s:m:l:U:";
@@ -358,6 +360,15 @@ bhyveParseBhyveCommandLine(virDomainDefPtr def, int argc, char **argv)
             // strictio = 1;
             break;
         case 'u':
+            if ((caps & BHYVE_CAP_RTC_UTC) != 0) {
+                def->clock.offset = VIR_DOMAIN_CLOCK_OFFSET_UTC;
+            } else {
+                virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
+                               _("Installed bhyve binary does not support "
+                              "UTC clock"));
+                goto error;
+            }
+
             // rtc_localtime = 0;
             break;
         case 'U':
@@ -413,6 +424,9 @@ bhyveParseCommandLineString(const char* nativeConfig,
     if (!(def = virDomainDefNew()))
         goto cleanup;
 
+    // Initialize defaults.
+    def->clock.offset = VIR_DOMAIN_CLOCK_OFFSET_LOCALTIME;
+
     if (bhyveCommandLine2argv(nativeConfig,
                               &loader_argc, &loader_argv,
                               &bhyve_argc, &bhyve_argv)) {
@@ -421,7 +435,7 @@ bhyveParseCommandLineString(const char* nativeConfig,
         goto cleanup;
     }
 
-    if (bhyveParseBhyveCommandLine(def, bhyve_argc, bhyve_argv))
+    if (bhyveParseBhyveCommandLine(def, caps, bhyve_argc, bhyve_argv))
         goto cleanup;
 
 cleanup:
