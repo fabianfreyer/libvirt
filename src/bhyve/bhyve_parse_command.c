@@ -268,6 +268,7 @@ bhyveParseBhyveCommandLine(virDomainDefPtr def, int argc, char **argv)
     int c;
     const char optstr[] = "abehuwxACHIPSWYp:g:c:s:m:l:U:";
     int vcpus = 1;
+    size_t memory = 0;
 
     if (!argv)
         goto error;
@@ -323,9 +324,24 @@ bhyveParseBhyveCommandLine(virDomainDefPtr def, int argc, char **argv)
             // memflags |= VM_MEM_F_WIRED;
             break;
         case 'm':
-            // error = vm_parse_memsize(optarg, &memsize);
-            // if (error)
-            //     errx(EX_USAGE, "invalid memsize '%s'", optarg);
+            if (virStrToLong_ul(optarg, NULL, 10, &memory) < 0) {
+                virReportError(VIR_ERR_OPERATION_FAILED,
+                               _("Failed to parse Memory."));
+                goto error;
+            }
+            /* For compatibility reasons, assume memory is givin in MB
+             * when < 1024, otherwise it is given in bytes */
+            if (memory < 1024)
+                memory *= 1024;
+            else
+                memory /= 1024UL;
+            if (def->mem.cur_balloon != 0 && def->mem.cur_balloon != memory) {
+                virReportError(VIR_ERR_OPERATION_FAILED,
+                           _("Failed to parse Memory: Memory size mismatch."));
+                goto error;
+            }
+            def->mem.cur_balloon = memory;
+            virDomainDefSetMemoryTotal(def, memory);
             break;
         case 'H':
             // guest_vmexit_on_hlt = 1;
