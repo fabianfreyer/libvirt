@@ -232,6 +232,99 @@ bhyveCommandLine2argv(const char *nativeConfig,
     return -1;
 }
 
+static int
+bhyveParseBhyveLPCArg(virDomainDefPtr def,
+                      unsigned caps ATTRIBUTE_UNUSED,
+                      const char *arg)
+{
+    const char *separator = NULL;
+    const char *param = NULL;
+    size_t last = 0;
+    virDomainChrDefPtr chr = NULL;
+    char *type = NULL;
+
+    separator = strchr(arg, ',');
+    param = separator + 1;
+
+    if (!separator)
+        goto error;
+
+    if (VIR_STRNDUP(type, arg, separator - arg) < 0)
+        goto error;
+
+    /* Only support com%d */
+    if (STRPREFIX(type, "com") && type[4] == 0) {
+        if (!(chr = virDomainChrDefNew()))
+            goto error;
+
+        chr->source.type = VIR_DOMAIN_CHR_TYPE_NMDM;
+        chr->deviceType = VIR_DOMAIN_CHR_DEVICE_TYPE_SERIAL;
+
+        if (!STRPREFIX(param, "/dev/nmdm")) {
+            virReportError(VIR_ERR_OPERATION_FAILED,
+                           _("Failed to set com port %s: does not start with "
+                             "'/dev/nmdm'."), type);
+                goto error;
+        }
+
+        if (VIR_STRDUP(chr->source.data.file.path, param) < 0) {
+            virDomainChrDefFree(chr);
+            goto error;
+        }
+
+        if (VIR_STRDUP(chr->source.data.nmdm.slave, chr->source.data.file.path)
+            < 0) {
+            virDomainChrDefFree(chr);
+            goto error;
+        }
+
+        /* If the last character of the master is 'A', the slave will be 'B'
+         * and vice versa */
+        last = strlen(chr->source.data.file.path) - 1;
+        switch (chr->source.data.file.path[last]) {
+            case 'A':
+                chr->source.data.file.path[last] = 'B';
+                break;
+            case 'B':
+                chr->source.data.file.path[last] = 'A';
+                break;
+            default:
+                virReportError(VIR_ERR_OPERATION_FAILED,
+                               _("Failed to set slave for %s: last letter not "
+                                 "'A' or 'B'"),
+                               chr->source.data.file.path);
+                goto error;
+        }
+
+        switch(type[3]-'0') {
+        case 1:
+        case 2:
+            chr->target.port = type[3] - '1';
+            break;
+        default:
+            virReportError(VIR_ERR_OPERATION_FAILED,
+                           _("Failed to parse %s: only com1 and com2"
+                             "supported."), type);
+            virDomainChrDefFree(chr);
+            goto error;
+            break;
+        }
+
+        if (VIR_APPEND_ELEMENT(def->serials, def->nserials, chr) < 0) {
+            virDomainChrDefFree(chr);
+            goto error;
+        }
+    }
+
+    VIR_FREE(type);
+    return 0;
+
+error:
+    VIR_FREE(chr);
+    VIR_FREE(type);
+    return -1;
+}
+
 /*
  * Parse the /usr/bin/bhyve command line. */
 static int
@@ -265,7 +358,8 @@ bhyveParseBhyveCommandLine(virDomainDefPtr def,
                 goto error;
             break;
         case 'l':
-            // FIXME: Implement.
+            if (bhyveParseBhyveLPCArg(def, caps, optarg))
+                goto error;
             break;
         case 's':
             // FIXME: Implement.
