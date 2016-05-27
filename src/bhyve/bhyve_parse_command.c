@@ -372,7 +372,11 @@ bhyveParseBhyveCommandLine(virDomainDefPtr def,
             // rtc_localtime = 0;
             break;
         case 'U':
-            // guest_uuid_str = optarg;
+            if (virUUIDParse(optarg, def->uuid) < 0) {
+                virReportError(VIR_ERR_INTERNAL_ERROR, \
+                               _("cannot parse UUID '%s'"), optarg);
+                goto error;
+            }
             break;
         case 'w':
             // strictmsr = 0;
