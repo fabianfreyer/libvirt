@@ -347,13 +347,9 @@ bhyveParseBhyveCommandLine(virDomainDefPtr def, int argc, char **argv)
             // guest_vmexit_on_hlt = 1;
             break;
         case 'I':
-            /*
-             * The "-I" option was used to add an ioapic to the
-             * virtual machine.
-             *
-             * An ioapic is now provided unconditionally for each
-             * virtual machine and this option is now deprecated.
-             */
+            /* While this flag was deprecated in FreeBSD r257423, keep checking
+             * for it for backwards compatibility. */
+            def->features[VIR_DOMAIN_FEATURE_APIC] = VIR_TRISTATE_SWITCH_ON;
             break;
         case 'P':
             // guest_vmexit_on_pause = 1;
