@@ -280,7 +280,7 @@ bhyveParseBhyveCommandLine(virDomainDefPtr def, int argc, char **argv)
             // x2apic_mode = 0;
             break;
         case 'A':
-            // acpi = 1;
+            def->features[VIR_DOMAIN_FEATURE_ACPI] = VIR_TRISTATE_SWITCH_ON;
             break;
         case 'b':
             // bvmcons = 1;
