@@ -111,8 +111,11 @@ bhyveCommandLine2argv(const char *nativeConfig,
     char **_loader_argv = NULL;
 
     nativeConfig_unescaped = bhyveParseCommandLineUnescape(nativeConfig);
-    if (nativeConfig_unescaped == NULL)
+    if (nativeConfig_unescaped == NULL) {
+        virReportError(VIR_ERR_INTERNAL_ERROR,
+                       _("Failed to unescape command line string"));
         goto error;
+    }
 
     curr = nativeConfig_unescaped;
 
@@ -289,8 +292,11 @@ bhyveParseBhyveCommandLine(virDomainDefPtr def, int argc, char **argv)
             break;
         case 'c':
             /* -c: # cpus (default 1) */
-            if (virStrToLong_i(optarg, NULL, 10, &vcpus) < 0)
+            if (virStrToLong_i(optarg, NULL, 10, &vcpus) < 0) {
+                virReportError(VIR_ERR_OPERATION_FAILED,
+                               _("Failed to parse number of vCPUs."));
                 goto error;
+            }
             if (virDomainDefSetVcpusMax(def, vcpus) < 0)
                 goto error;
             if (virDomainDefSetVcpus(def, vcpus) < 0)
@@ -360,16 +366,21 @@ bhyveParseBhyveCommandLine(virDomainDefPtr def, int argc, char **argv)
         }
     }
 
-    if (argc != optind)
+    if (argc != optind) {
+        virReportError(VIR_ERR_OPERATION_FAILED,
+                       _("Failed to parse arguments for bhyve command."));
         goto error;
+    }
 
     if (def->name == NULL)
         def->name = argv[argc];
-    else if (STRNEQ(def->name, argv[argc]))
+    else if (STRNEQ(def->name, argv[argc])) {
         /* the vm name of the loader and the bhyverun command differ, throw an
-         * error here
-         * FIXME: Print a more verbose error message. */
+         * error here */
+        virReportError(VIR_ERR_OPERATION_FAILED,
+                       _("Failed to parse arguments: VM name mismatch."));
         goto error;
+    }
 
     return 0;
 error:
@@ -392,8 +403,11 @@ bhyveParseCommandLineString(const char* nativeConfig,
 
     if (bhyveCommandLine2argv(nativeConfig,
                               &loader_argc, &loader_argv,
-                              &bhyve_argc, &bhyve_argv))
+                              &bhyve_argc, &bhyve_argv)) {
+        virReportError(VIR_ERR_INTERNAL_ERROR,
+                    _("Failed to convert the command string to argv-lists.."));
         goto cleanup;
+    }
 
     if (bhyveParseBhyveCommandLine(def, bhyve_argc, bhyve_argv))
         goto cleanup;
