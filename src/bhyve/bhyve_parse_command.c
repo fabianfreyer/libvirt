@@ -3,7 +3,6 @@
  *
  * Copyright (C) 2006-2016 Red Hat, Inc.
  * Copyright (C) 2006 Daniel P. Berrange
- * Copyright (c) 2011 NetApp, Inc.
  * Copyright (C) 2016 Fabian Freyer
  *
  * This library is free software; you can redistribute it and/or
@@ -234,34 +233,7 @@ bhyveCommandLine2argv(const char *nativeConfig,
 }
 
 /*
- * Parse the /usr/bin/bhyve command line. Parts of this are taken from the
- * FreeBSD source code, specifically from usr.sbin/bhyve/bhyverun.c, which
- * is licensed under the following license:
- *
- * Copyright (c) 2011 NetApp, Inc.
- * All rights reserved.
- *
- * Redistribution and use in source and binary forms, with or without
- * modification, are permitted provided that the following conditions
- * are met:
- * 1. Redistributions of source code must retain the above copyright
- *    notice, this list of conditions and the following disclaimer.
- * 2. Redistributions in binary form must reproduce the above copyright
- *    notice, this list of conditions and the following disclaimer in the
- *    documentation and/or other materials provided with the distribution.
- *
- * THIS SOFTWARE IS PROVIDED BY NETAPP, INC ``AS IS'' AND
- * ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
- * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
- * ARE DISCLAIMED.  IN NO EVENT SHALL NETAPP, INC OR CONTRIBUTORS BE LIABLE
- * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
- * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS
- * OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
- * HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
- * LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY
- * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
- * SUCH DAMAGE.
- */
+ * Parse the /usr/bin/bhyve command line. */
 static int
 bhyveParseBhyveCommandLine(virDomainDefPtr def,
                            unsigned caps,
@@ -278,23 +250,10 @@ bhyveParseBhyveCommandLine(virDomainDefPtr def,
     optind = 1;
     while ((c = getopt(argc, argv, optstr)) != -1) {
         switch (c) {
-        case 'a':
-            // x2apic_mode = 0;
-            break;
         case 'A':
             def->features[VIR_DOMAIN_FEATURE_ACPI] = VIR_TRISTATE_SWITCH_ON;
             break;
-        case 'b':
-            // bvmcons = 1;
-            break;
-        case 'p':
-            // if (pincpu_parse(optarg) != 0) {
-            //     errx(EX_USAGE, "invalid vcpu pinning "
-            //          "configuration '%s'", optarg);
-            // }
-            break;
         case 'c':
-            /* -c: # cpus (default 1) */
             if (virStrToLong_i(optarg, NULL, 10, &vcpus) < 0) {
                 virReportError(VIR_ERR_OPERATION_FAILED,
                                _("Failed to parse number of vCPUs."));
@@ -305,25 +264,11 @@ bhyveParseBhyveCommandLine(virDomainDefPtr def,
             if (virDomainDefSetVcpus(def, vcpus) < 0)
                 goto error;
             break;
-        case 'C':
-            // memflags |= VM_MEM_F_INCORE;
-            break;
-        case 'g':
-            // gdb_port = atoi(optarg);
-            break;
         case 'l':
-            // if (lpc_device_parse(optarg) != 0) {
-            //     errx(EX_USAGE, "invalid lpc device "
-            //         "configuration '%s'", optarg);
-            // }
+            // FIXME: Implement.
             break;
         case 's':
-            // if (pci_parse_slot(optarg) != 0)
-            //     exit(1);
-            // else
-            break;
-        case 'S':
-            // memflags |= VM_MEM_F_WIRED;
+            // FIXME: Implement.
             break;
         case 'm':
             if (virStrToLong_ul(optarg, NULL, 10, &memory) < 0) {
@@ -345,19 +290,11 @@ bhyveParseBhyveCommandLine(virDomainDefPtr def,
             def->mem.cur_balloon = memory;
             virDomainDefSetMemoryTotal(def, memory);
             break;
-        case 'H':
-            // guest_vmexit_on_hlt = 1;
             break;
         case 'I':
             /* While this flag was deprecated in FreeBSD r257423, keep checking
              * for it for backwards compatibility. */
             def->features[VIR_DOMAIN_FEATURE_APIC] = VIR_TRISTATE_SWITCH_ON;
-            break;
-        case 'P':
-            // guest_vmexit_on_pause = 1;
-            break;
-        case 'e':
-            // strictio = 1;
             break;
         case 'u':
             if ((caps & BHYVE_CAP_RTC_UTC) != 0) {
@@ -368,8 +305,6 @@ bhyveParseBhyveCommandLine(virDomainDefPtr def,
                               "UTC clock"));
                 goto error;
             }
-
-            // rtc_localtime = 0;
             break;
         case 'U':
             if (virUUIDParse(optarg, def->uuid) < 0) {
@@ -377,18 +312,6 @@ bhyveParseBhyveCommandLine(virDomainDefPtr def,
                                _("cannot parse UUID '%s'"), optarg);
                 goto error;
             }
-            break;
-        case 'w':
-            // strictmsr = 0;
-            break;
-        case 'W':
-            // virtio_msix = 0;
-            break;
-        case 'x':
-            // x2apic_mode = 1;
-            break;
-        case 'Y':
-            // mptgen = 0;
             break;
         }
     }
