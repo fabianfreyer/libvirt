@@ -416,8 +416,10 @@ bhyveParseBhyveCommandLine(virDomainDefPtr def,
         goto error;
     }
 
-    if (def->name == NULL)
-        def->name = argv[argc];
+    if (def->name == NULL) {
+        if(VIR_STRDUP(def->name, argv[argc]) < 0)
+            goto error;
+    }
     else if (STRNEQ(def->name, argv[argc])) {
         /* the vm name of the loader and the bhyverun command differ, throw an
          * error here */
@@ -466,5 +468,7 @@ bhyveParseCommandLineString(const char* nativeConfig,
         goto cleanup;
 
 cleanup:
+    virStringFreeList(loader_argv);
+    virStringFreeList(bhyve_argv);
     return def;
 }
