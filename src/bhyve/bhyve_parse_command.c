@@ -450,7 +450,79 @@ error:
 }
 
 static int
+bhyveParsePCINet(virDomainDefPtr def,
+                 virDomainXMLOptionPtr xmlopt,
+                 unsigned caps ATTRIBUTE_UNUSED,
+                 unsigned pcislot,
+                 unsigned pcibus,
+                 unsigned function,
+                 const char *config)
+{
+    /* -s slot,virtio-net,tapN[,mac=xx:xx:xx:xx:xx:xx] */
+
+    virDomainNetDefPtr net = NULL;
+    const char *separator = NULL;
+    const char *mac = NULL;
+
+    if (VIR_ALLOC(net) < 0)
+        goto cleanup;
+
+    /* Let's just assume it is VIR_DOMAIN_NET_TYPE_ETHERNET, it could also be
+     * a bridge, but this is the most generic option. */
+    net->type = VIR_DOMAIN_NET_TYPE_ETHERNET;
+
+    net->info.type = VIR_DOMAIN_DEVICE_ADDRESS_TYPE_PCI;
+    net->info.addr.pci.slot = pcislot;
+    net->info.addr.pci.bus = pcibus;
+    net->info.addr.pci.function = function;
+
+    if (!config)
+        goto error;
+
+    if (!STRPREFIX(config, "tap")) {
+        virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
+                       _("Only tap devices supported."));
+        goto error;
+    }
+
+    separator = strchr(config, ',');
+    if (VIR_STRNDUP(net->ifname, config,
+                    separator? separator - config : -1) < 0)
+        goto error;
+
+    if (!separator)
+        goto cleanup;
+
+    if (!STRPREFIX(++separator, "mac=")) {
+        virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
+                       _("Only mac option can be specified for virt-net"));
+        goto error;
+    }
+    mac = separator + 4;
+
+    if (virMacAddrParse(mac, &net->mac) < 0) {
+        virReportError(VIR_ERR_INTERNAL_ERROR,
+                       _("unable to parse mac address '%s'"),
+                       mac);
+        goto cleanup;
+     }
+cleanup:
+
+    if (!mac)
+        virDomainNetGenerateMAC(xmlopt, &net->mac);
+
+    if (VIR_APPEND_ELEMENT(def->nets, def->nnets, net) < 0)
+        goto error;
+    return 0;
+
+error:
+    virDomainNetDefFree(net);
+    return -1;
+}
+
+static int
 bhyveParseBhyvePCIArg(virDomainDefPtr def,
+                      virDomainXMLOptionPtr xmlopt,
                       unsigned caps,
                       unsigned *nvirtiodisk,
                       unsigned *nahcidisk,
@@ -504,6 +576,8 @@ bhyveParseBhyvePCIArg(virDomainDefPtr def,
                           nvirtiodisk,
                           nahcidisk,
                           conf);
+    else if (STREQ(emulation, "virtio-net"))
+        bhyveParsePCINet(def, xmlopt, caps, pcislot, bus, function, conf);
 
     VIR_FREE(emulation);
     VIR_FREE(slotdef);
@@ -518,6 +592,7 @@ error:
  * Parse the /usr/bin/bhyve command line. */
 static int
 bhyveParseBhyveCommandLine(virDomainDefPtr def,
+                           virDomainXMLOptionPtr xmlopt,
                            unsigned caps,
                            int argc, char **argv)
 {
@@ -554,6 +629,7 @@ bhyveParseBhyveCommandLine(virDomainDefPtr def,
             break;
         case 's':
             if (bhyveParseBhyvePCIArg(def,
+                                      xmlopt,
                                       caps,
                                       &nahcidisks,
                                       &nvirtiodisks,
@@ -632,7 +708,7 @@ error:
 virDomainDefPtr
 bhyveParseCommandLineString(const char* nativeConfig,
                             unsigned caps,
-                            virDomainXMLOptionPtr xmlopt ATTRIBUTE_UNUSED)
+                            virDomainXMLOptionPtr xmlopt)
 {
     virDomainDefPtr def = NULL;
     int bhyve_argc = 0;
@@ -660,7 +736,7 @@ bhyveParseCommandLineString(const char* nativeConfig,
         goto cleanup;
     }
 
-    if (bhyveParseBhyveCommandLine(def, caps, bhyve_argc, bhyve_argv))
+    if (bhyveParseBhyveCommandLine(def, xmlopt, caps, bhyve_argc, bhyve_argv))
         goto cleanup;
 
 cleanup:
