@@ -325,6 +325,195 @@ error:
     return -1;
 }
 
+static int
+bhyveParsePCISlot(const char *slotdef,
+                  unsigned *pcislot,
+                  unsigned *bus,
+                  unsigned *function)
+{
+    const char *curr = NULL;
+    const char *next = NULL;
+    unsigned values[3];
+    int i;
+
+    curr = slotdef;
+    for (i = 0; i < 3; i++) {
+       char *val = NULL;
+
+       next = strchr(curr, ':');
+
+       if (VIR_STRNDUP(val, curr, next? next - curr : -1) < 0)
+           goto error;
+
+       if (virStrToLong_ui(val, NULL, 10, &values[i]) < 0) {
+           goto error;
+       }
+
+       VIR_FREE(val);
+
+       if (!next)
+           break;
+
+       curr = next +1;
+    }
+
+    *bus = 0;
+    *pcislot = 0;
+    *function = 0;
+
+    switch (i + 1) {
+    case 2:
+        /* pcislot[:function] */
+        *function = values[1];
+    case 1:
+        *pcislot = values[0];
+        break;
+    case 3:
+        /* bus:pcislot:function */
+        *bus = values[0];
+        *pcislot = values[1];
+        *function = values[2];
+        break;
+    }
+
+    return 0;
+error:
+    return -1;
+}
+
+static int
+bhyveParsePCIDisk(virDomainDefPtr def,
+                  unsigned caps ATTRIBUTE_UNUSED,
+                  unsigned pcislot,
+                  unsigned pcibus,
+                  unsigned function,
+                  int bus,
+                  int device,
+                  unsigned *nvirtiodisk,
+                  unsigned *nahcidisk,
+                  char *config)
+{
+    const char *separator = NULL;
+    int index = -1;
+    virDomainDiskDefPtr disk = NULL;
+
+    if (VIR_ALLOC(disk) < 0)
+        goto cleanup;
+    if (VIR_ALLOC(disk->src) < 0)
+        goto error;
+
+    disk->bus = bus;
+    disk->device = device;
+
+    disk->info.type = VIR_DOMAIN_DEVICE_ADDRESS_TYPE_PCI;
+    disk->info.addr.pci.slot = pcislot;
+    disk->info.addr.pci.bus = pcibus;
+    disk->info.addr.pci.function = function;
+
+    if (STRPREFIX(config, "/dev/"))
+        disk->src->type = VIR_STORAGE_TYPE_BLOCK;
+    else
+        disk->src->type = VIR_STORAGE_TYPE_FILE;
+
+    if (!config)
+        goto error;
+
+    separator = strchr(config, ',');
+    if (VIR_STRNDUP(disk->src->path, config,
+                    separator? separator - config : -1) < 0)
+        goto error;
+
+    if (bus == VIR_DOMAIN_DISK_BUS_VIRTIO) {
+        index = *nvirtiodisk++;
+        if (VIR_STRDUP(disk->dst, "vda") < 0)
+            goto error;
+    }
+    else if (bus == VIR_DOMAIN_DISK_BUS_SATA) {
+        index = *nahcidisk++;
+        if (VIR_STRDUP(disk->dst, "sda") < 0)
+            goto error;
+    }
+    if (index > 'z' - 'a')
+        virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
+                       _("too many disks"));
+    disk->dst[2] = 'a' + index;
+
+    if (VIR_APPEND_ELEMENT(def->disks, def->ndisks, disk) < 0)
+        goto error;
+
+cleanup:
+    return 0;
+
+error:
+    virDomainDiskDefFree(disk);
+    return -1;
+}
+
+static int
+bhyveParseBhyvePCIArg(virDomainDefPtr def,
+                      unsigned caps,
+                      unsigned *nvirtiodisk,
+                      unsigned *nahcidisk,
+                      const char *arg)
+{
+    /* -s slot,emulation[,conf] */
+    const char *separator = NULL;
+    char *slotdef = NULL;
+    char *emulation = NULL;
+    char *conf = NULL;
+    unsigned pcislot, bus, function;
+
+    separator = strchr(arg, ',');
+
+    if (!separator)
+        goto error;
+    else
+        separator++; /* Skip comma */
+
+    if (VIR_STRNDUP(slotdef, arg, separator - arg - 1) < 0)
+        goto error;
+
+    conf = strchr(separator+1, ',');
+    if (conf)
+        conf++; /* Skip initial comma */
+
+    if (VIR_STRNDUP(emulation, separator, conf? conf - separator - 1 : -1) < 0)
+        goto error;
+
+    if (bhyveParsePCISlot(slotdef, &pcislot, &bus, &function) < 0)
+        goto error;
+
+    if (STREQ(emulation, "ahci-cd"))
+        bhyveParsePCIDisk(def, caps, pcislot, bus, function,
+                          VIR_DOMAIN_DISK_BUS_SATA,
+                          VIR_DOMAIN_DISK_DEVICE_CDROM,
+                          nvirtiodisk,
+                          nahcidisk,
+                          conf);
+    else if (STREQ(emulation, "ahci-hd"))
+        bhyveParsePCIDisk(def, caps, pcislot, bus, function,
+                          VIR_DOMAIN_DISK_BUS_SATA,
+                          VIR_DOMAIN_DISK_DEVICE_DISK,
+                          nvirtiodisk,
+                          nahcidisk,
+                          conf);
+    else if (STREQ(emulation, "virtio-blk"))
+        bhyveParsePCIDisk(def, caps, pcislot, bus, function,
+                          VIR_DOMAIN_DISK_BUS_VIRTIO,
+                          VIR_DOMAIN_DISK_DEVICE_DISK,
+                          nvirtiodisk,
+                          nahcidisk,
+                          conf);
+
+    VIR_FREE(emulation);
+    VIR_FREE(slotdef);
+    return 0;
+error:
+    VIR_FREE(emulation);
+    VIR_FREE(slotdef);
+    return -1;
+}
+
 /*
  * Parse the /usr/bin/bhyve command line. */
 static int
@@ -336,6 +525,8 @@ bhyveParseBhyveCommandLine(virDomainDefPtr def,
     const char optstr[] = "abehuwxACHIPSWYp:g:c:s:m:l:U:";
     int vcpus = 1;
     size_t memory = 0;
+    unsigned nahcidisks = 0;
+    unsigned nvirtiodisks = 0;
 
     if (!argv)
         goto error;
@@ -362,7 +553,12 @@ bhyveParseBhyveCommandLine(virDomainDefPtr def,
                 goto error;
             break;
         case 's':
-            // FIXME: Implement.
+            if (bhyveParseBhyvePCIArg(def,
+                                      caps,
+                                      &nahcidisks,
+                                      &nvirtiodisks,
+                                      optarg))
+                goto error;
             break;
         case 'm':
             if (virStrToLong_ul(optarg, NULL, 10, &memory) < 0) {
