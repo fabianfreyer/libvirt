@@ -1630,7 +1630,7 @@ static virHypervisorDriver bhyveHypervisorDriver = {
     .connectIsAlive = bhyveConnectIsAlive, /* 1.3.5 */
     .connectIsSecure = bhyveConnectIsSecure, /* 1.3.5 */
     .connectIsEncrypted = bhyveConnectIsEncrypted, /* 1.3.5 */
-    .connectDomainXMLFromNative = bhyveConnectDomainXMLFromNative, /* 1.3.5 */
+    .connectDomainXMLFromNative = bhyveConnectDomainXMLFromNative, /* 1.3.6 */
 };
 
 
