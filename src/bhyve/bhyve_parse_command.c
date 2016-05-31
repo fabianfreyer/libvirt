@@ -602,11 +602,13 @@ bhyveParseBhyveCommandLine(virDomainDefPtr def,
     size_t memory = 0;
     unsigned nahcidisks = 0;
     unsigned nvirtiodisks = 0;
+    int opterr_saved = opterr;
 
     if (!argv)
         goto error;
 
     optind = 1;
+    opterr = 0;
     while ((c = getopt(argc, argv, optstr)) != -1) {
         switch (c) {
         case 'A':
@@ -700,8 +702,10 @@ bhyveParseBhyveCommandLine(virDomainDefPtr def,
         goto error;
     }
 
+    opterr = opterr_saved;
     return 0;
 error:
+    opterr = opterr_saved;
     return -1;
 }
 
