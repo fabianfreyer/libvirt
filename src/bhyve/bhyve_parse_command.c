@@ -709,6 +709,102 @@ error:
     return -1;
 }
 
+/*
+ * Parse the /usr/sbin/bhyveload command line.
+ */
+static int
+bhyveParseBhyveLoadCommandLine(virDomainDefPtr def,
+                           virDomainXMLOptionPtr xmlopt ATTRIBUTE_UNUSED,
+                           unsigned caps ATTRIBUTE_UNUSED,
+                           int argc, char **argv)
+{
+    int c;
+    /* bhyveload called with default arguments when only -m and -d are given.
+     * Store this in a bit field and check if only those two options are given
+     * later */
+    unsigned arguments = 0;
+    size_t memory = 0;
+    int opterr_saved = opterr;
+    int i = 0;
+
+    const char optstr[] = "CSc:d:e:h:l:m:";
+
+    if (!argv)
+        goto error;
+
+    optind = 1;
+    opterr = 0;
+    while ((c = getopt(argc, argv, optstr)) != -1) {
+        switch (c) {
+        case 'd':
+            arguments |= 1;
+            /* Iterate over the disks of the domain trying to match up the
+             * source */
+            for (i = 0; i < def->ndisks; i++) {
+                if (STREQ(virDomainDiskGetSource(def->disks[i]), optarg)) {
+                    def->disks[i]->info.bootIndex = i;
+                    break;
+                }
+            }
+            break;
+        case 'm':
+            arguments |= 2;
+            if (virStrToLong_ul(optarg, NULL, 10, &memory) < 0) {
+                virReportError(VIR_ERR_OPERATION_FAILED,
+                               _("Failed to parse Memory."));
+                goto error;
+            }
+            if (memory < 1024)
+                memory *= 1024;
+            else
+                memory /= 1024UL;
+            if (def->mem.cur_balloon != 0 && def->mem.cur_balloon != memory) {
+                virReportError(VIR_ERR_OPERATION_FAILED,
+                           _("Failed to parse Memory: Memory size mismatch."));
+                goto error;
+            }
+            def->mem.cur_balloon = memory;
+            virDomainDefSetMemoryTotal(def, memory);
+            break;
+        default:
+            arguments |= 4;
+        }
+    }
+
+    if (arguments != 3) {
+        /* Set os.bootloader since virDomainDefFormatInternal will only format
+         * the bootloader arguments if os->bootloader is set. */
+        if(VIR_STRDUP(def->os.bootloader, argv[0]) < 0)
+           goto error;
+
+        def->os.bootloaderArgs = virStringJoin((const char**) &argv[1], " ");
+    }
+
+    if (argc != optind) {
+        virReportError(VIR_ERR_OPERATION_FAILED,
+                       _("Failed to parse arguments for bhyveload command."));
+        goto error;
+    }
+
+    if (def->name == NULL) {
+        if(VIR_STRDUP(def->name, argv[argc]) < 0)
+            goto error;
+    }
+    else if (STRNEQ(def->name, argv[argc])) {
+        /* the vm name of the loader and the bhyverun command differ, throw an
+         * error here */
+        virReportError(VIR_ERR_OPERATION_FAILED,
+                       _("Failed to parse arguments: VM name mismatch."));
+        goto error;
+    }
+
+    opterr = opterr_saved;
+    return 0;
+error:
+    opterr = opterr_saved;
+    return -1;
+}
+
 virDomainDefPtr
 bhyveParseCommandLineString(const char* nativeConfig,
                             unsigned caps,
@@ -742,6 +838,11 @@ bhyveParseCommandLineString(const char* nativeConfig,
 
     if (bhyveParseBhyveCommandLine(def, xmlopt, caps, bhyve_argc, bhyve_argv))
         goto cleanup;
+    if (STREQ(loader_argv[0], "/usr/sbin/bhyveload"))
+        if (bhyveParseBhyveLoadCommandLine(def, xmlopt, caps,
+                                           loader_argc, loader_argv))
+            goto cleanup;
+
 
 cleanup:
     virStringFreeList(loader_argv);
