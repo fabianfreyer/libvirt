@@ -203,8 +203,7 @@ bhyveCommandLine2argv(const char *nativeConfig,
             _bhyve_argv[j] = NULL;
             *bhyve_argc = args_count-1;
         }
-        else if (!_loader_argv && (STREQ(arglist[0], "/usr/sbin/bhyveload")
-                 || STREQ(arglist[0], "/usr/sbin/grub-bhyve"))) {
+        else if (!_loader_argv) {
             if ((VIR_REALLOC_N(_loader_argv, args_count + 1) < 0)
                 || (!loader_argc))
                 goto error;
@@ -805,6 +804,24 @@ error:
     return -1;
 }
 
+static int
+bhyveParseCustomLoaderCommandLine(virDomainDefPtr def,
+                                  int argc ATTRIBUTE_UNUSED,
+                                  char **argv)
+{
+    if (!argv)
+        goto error;
+
+    if(VIR_STRDUP(def->os.bootloader, argv[0]) < 0)
+       goto error;
+
+    def->os.bootloaderArgs = virStringJoin((const char**) &argv[1], " ");
+
+    return 0;
+error:
+    return -1;
+}
+
 virDomainDefPtr
 bhyveParseCommandLineString(const char* nativeConfig,
                             unsigned caps,
@@ -838,11 +855,14 @@ bhyveParseCommandLineString(const char* nativeConfig,
 
     if (bhyveParseBhyveCommandLine(def, xmlopt, caps, bhyve_argc, bhyve_argv))
         goto cleanup;
-    if (STREQ(loader_argv[0], "/usr/sbin/bhyveload"))
+    if (STREQ(loader_argv[0], "/usr/sbin/bhyveload")) {
         if (bhyveParseBhyveLoadCommandLine(def, xmlopt, caps,
                                            loader_argc, loader_argv))
             goto cleanup;
-
+    }
+    else if(loader_argv)
+        if (bhyveParseCustomLoaderCommandLine(def, loader_argc, loader_argv))
+            goto cleanup;
 
 cleanup:
     virStringFreeList(loader_argv);
