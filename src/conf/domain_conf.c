@@ -22608,6 +22608,8 @@ virDomainDefFormatInternal(virDomainDefPtr def,
     if (def->os.bootloader) {
         virBufferEscapeString(buf, "<bootloader>%s</bootloader>\n",
                               def->os.bootloader);
+    }
+    if (def->os.bootloaderArgs) {
         virBufferEscapeString(buf,
                               "<bootloader_args>%s</bootloader_args>\n",
                               def->os.bootloaderArgs);
