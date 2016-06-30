@@ -281,6 +281,12 @@ virBhyveProcessBuildBhyveCmd(virConnectPtr conn,
     virCommandAddArg(cmd, "-P"); /* vmexit from guest on pause */
 
     virCommandAddArgList(cmd, "-s", "0:0,hostbridge", NULL);
+    if (def->os.bootloader == NULL &&
+        def->os.loader &&
+        (bhyveDriverGetCaps(conn) & BHYVE_CAP_LPC_BOOTROM) != 0) {
+        virCommandAddArg(cmd, "-l");
+        virCommandAddArgFormat(cmd, "bootrom,%s", def->os.loader->path);
+    }
     /* Devices */
     for (i = 0; i < def->nnets; i++) {
         virDomainNetDefPtr net = def->nets[i];
