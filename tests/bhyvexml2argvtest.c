@@ -44,8 +44,12 @@ static int testCompareXMLToArgvFiles(const char *xml,
     conn->privateData = &driver;
 
     cmd = virBhyveProcessBuildBhyveCmd(conn, vmdef, false);
-    ldcmd = virBhyveProcessBuildLoadCmd(conn, vmdef, "<device.map>",
+    if (!vmdef->os.loader)
+            ldcmd = virBhyveProcessBuildLoadCmd(conn, vmdef, "<device.map>",
                                         &actualdm);
+
+    if ((ldcmd == NULL) && (vmdef->os.loader))
+        ldcmd = virCommandNew("dummy");
 
     if ((cmd == NULL) || (ldcmd == NULL)) {
         if (flags & FLAG_EXPECT_FAILURE) {
@@ -151,7 +155,7 @@ mymain(void)
     DO_TEST_FULL(name, FLAG_EXPECT_PARSE_ERROR)
 
     driver.grubcaps = BHYVE_GRUB_CAP_CONSDEV;
-    driver.bhyvecaps = BHYVE_CAP_RTC_UTC;
+    driver.bhyvecaps = BHYVE_CAP_RTC_UTC | BHYVE_CAP_LPC_BOOTROM;
 
     DO_TEST("base");
     DO_TEST("acpiapic");
@@ -178,6 +182,11 @@ mymain(void)
     driver.grubcaps = 0;
 
     DO_TEST("serial-grub-nocons");
+
+    DO_TEST("uefi");
+
+    driver.bhyvecaps &= ~BHYVE_CAP_LPC_BOOTROM;
+    DO_TEST_FAILURE("nouefi");
 
     virObjectUnref(driver.caps);
     virObjectUnref(driver.xmlopt);
