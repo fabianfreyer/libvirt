@@ -53,6 +53,7 @@
 #include "nodeinfo.h"
 #include "virhostcpu.h"
 #include "virhostmem.h"
+#include "conf/domain_capabilities.h"
 
 #include "bhyve_device.h"
 #include "bhyve_driver.h"
@@ -1539,6 +1540,60 @@ bhyveConnectIsEncrypted(virConnectPtr conn ATTRIBUTE_UNUSED)
     return 0;
 }
 
+static char *
+bhyveConnectGetDomainCapabilities(virConnectPtr conn,
+                                  const char *emulatorbin,
+                                  const char *arch_str,
+                                  const char *machine,
+                                  const char *virttype_str,
+                                  unsigned int flags)
+{
+    //bhyveConnPtr privconn = conn->privateData;
+    virDomainCapsPtr caps = NULL;
+    char *ret = NULL;
+    int virttype = VIR_DOMAIN_VIRT_BHYVE;
+    int arch = virArchFromHost(); /* virArch */
+
+    virCheckFlags(0, ret);
+
+    if (virConnectGetDomainCapabilitiesEnsureACL(conn) < 0)
+        return ret;
+
+    if (virttype_str &&
+        (virttype = virDomainVirtTypeFromString(virttype_str)) < 0) {
+        virReportError(VIR_ERR_INVALID_ARG,
+                       _("unknown virttype: %s"),
+                       virttype_str);
+        goto cleanup;
+    }
+
+    if (virttype != VIR_DOMAIN_VIRT_BHYVE) {
+        virReportError(VIR_ERR_INVALID_ARG,
+                       _("unknown virttype: %s"),
+                       virttype_str);
+        goto cleanup;
+    }
+
+    if (arch_str && (arch = virArchFromString(arch_str)) == VIR_ARCH_NONE) {
+        virReportError(VIR_ERR_INVALID_ARG,
+                       _("unknown architecture: %s"),
+                       arch_str);
+        goto cleanup;
+    }
+
+    if (emulatorbin == NULL)
+        emulatorbin = "/usr/sbin/bhyve";
+
+    if (!(caps = virBhyveDomainCapsBuild(emulatorbin, machine, arch, virttype)))
+        goto cleanup;
+
+    ret = virDomainCapsFormat(caps);
+
+ cleanup:
+    virObjectUnref(caps);
+    return ret;
+}
+
 static virHypervisorDriver bhyveHypervisorDriver = {
     .name = "bhyve",
     .connectOpen = bhyveConnectOpen, /* 1.2.2 */
@@ -1592,6 +1647,7 @@ static virHypervisorDriver bhyveHypervisorDriver = {
     .connectIsAlive = bhyveConnectIsAlive, /* 1.3.5 */
     .connectIsSecure = bhyveConnectIsSecure, /* 1.3.5 */
     .connectIsEncrypted = bhyveConnectIsEncrypted, /* 1.3.5 */
+    .connectGetDomainCapabilities = bhyveConnectGetDomainCapabilities, /* 2.0.1 */
 };
 
 
