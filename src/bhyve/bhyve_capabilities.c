@@ -117,6 +117,7 @@ virBhyveDomainCapsBuild(const char *emulatorbin,
                         virDomainVirtType virttype)
 {
     virDomainCapsPtr caps = NULL;
+    unsigned int bhyve_caps = 0;
     DIR *dir;
     struct dirent *entry;
     const char *firmware_dir = "/usr/local/share/uefi-firmware";
@@ -124,6 +125,12 @@ virBhyveDomainCapsBuild(const char *emulatorbin,
 
     if (!(caps = virDomainCapsNew(emulatorbin, machine, arch, virttype)))
         goto cleanup;
+
+    if (virBhyveProbeCaps(&bhyve_caps)) {
+        virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
+                       _("failed probing capabilities"));
+        goto cleanup;
+    }
 
     caps->os.supported = true;
     caps->os.loader.supported = true;
@@ -155,6 +162,10 @@ virBhyveDomainCapsBuild(const char *emulatorbin,
                              VIR_DOMAIN_DISK_BUS_SATA,
                              VIR_DOMAIN_DISK_BUS_VIRTIO);
 
+    if (bhyve_caps & BHYVE_CAP_FBUF) {
+        caps->graphics.supported = true;
+        VIR_DOMAIN_CAPS_ENUM_SET(caps->graphics.type, VIR_DOMAIN_GRAPHICS_TYPE_VNC);
+    }
  cleanup:
     return caps;
 }
@@ -243,6 +254,29 @@ bhyveProbeCapsLPC_Bootrom(unsigned int *caps, char *binary)
     return ret;
 }
 
+static int
+bhyveProbeCapsFramebuffer(unsigned int *caps, char *binary)
+{
+    char *error;
+    virCommandPtr cmd = NULL;
+    int ret = 0, exit;
+
+    cmd = virCommandNew(binary);
+    virCommandAddArgList(cmd, "-s", "0,fbuf", NULL);
+    virCommandSetErrorBuffer(cmd, &error);
+    if (virCommandRun(cmd, &exit) < 0) {
+        ret = -1;
+        goto out;
+    }
+
+    if (strstr(error, "pci slot 0:0: unknown device \"fbuf\"") == NULL)
+        *caps |= BHYVE_CAP_FBUF;
+
+ out:
+    VIR_FREE(error);
+    virCommandFree(cmd);
+    return ret;
+}
 
 int
 virBhyveProbeCaps(unsigned int *caps)
@@ -260,6 +294,9 @@ virBhyveProbeCaps(unsigned int *caps)
         goto out;
 
     if ((ret = bhyveProbeCapsLPC_Bootrom(caps, binary)))
+        goto out;
+
+    if ((ret = bhyveProbeCapsFramebuffer(caps, binary)))
         goto out;
 
  out:
