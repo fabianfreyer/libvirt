@@ -164,7 +164,9 @@ virBhyveDomainCapsBuild(const char *emulatorbin,
 
     if (bhyve_caps & BHYVE_CAP_FBUF) {
         caps->graphics.supported = true;
+        caps->video.supported = true;
         VIR_DOMAIN_CAPS_ENUM_SET(caps->graphics.type, VIR_DOMAIN_GRAPHICS_TYPE_VNC);
+        VIR_DOMAIN_CAPS_ENUM_SET(caps->video.modelType, VIR_DOMAIN_VIDEO_TYPE_GOP);
     }
  cleanup:
     return caps;
