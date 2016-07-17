@@ -120,6 +120,13 @@ bhyveBuildNetArgStr(const virDomainDef *def,
 }
 
 static int
+bhyveBuildLPCArgStr(const virDomainDef *def ATTRIBUTE_UNUSED,
+                    virCommandPtr cmd) {
+    virCommandAddArgList(cmd, "-s", "1,lpc", NULL);
+    return 0;
+}
+
+static int
 bhyveBuildConsoleArgStr(const virDomainDef *def, virCommandPtr cmd)
 {
 
@@ -143,7 +150,6 @@ bhyveBuildConsoleArgStr(const virDomainDef *def, virCommandPtr cmd)
         return -1;
     }
 
-    virCommandAddArgList(cmd, "-s", "1,lpc", NULL);
     virCommandAddArg(cmd, "-l");
     virCommandAddArgFormat(cmd, "com%d,%s",
                            chr->target.port + 1, chr->source.data.file.path);
@@ -227,6 +233,7 @@ virBhyveProcessBuildBhyveCmd(virConnectPtr conn,
      *            vm0
      */
     size_t i;
+    bool add_lpc = false;
 
     virCommandPtr cmd = virCommandNew(BHYVE);
 
@@ -286,7 +293,9 @@ virBhyveProcessBuildBhyveCmd(virConnectPtr conn,
         (bhyveDriverGetCaps(conn) & BHYVE_CAP_LPC_BOOTROM) != 0) {
         virCommandAddArg(cmd, "-l");
         virCommandAddArgFormat(cmd, "bootrom,%s", def->os.loader->path);
+        add_lpc = true;
     }
+
     /* Devices */
     for (i = 0; i < def->nnets; i++) {
         virDomainNetDefPtr net = def->nets[i];
@@ -304,6 +313,10 @@ virBhyveProcessBuildBhyveCmd(virConnectPtr conn,
     }
     if (bhyveBuildConsoleArgStr(def, cmd) < 0)
         goto error;
+
+    if(add_lpc)
+        bhyveBuildLPCArgStr(def, cmd);
+
     virCommandAddArg(cmd, def->name);
 
     return cmd;
