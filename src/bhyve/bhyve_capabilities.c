@@ -89,7 +89,7 @@ virBhyveCapsBuild(void)
 
     if ((guest = virCapabilitiesAddGuest(caps, VIR_DOMAIN_OSTYPE_HVM,
                                          VIR_ARCH_X86_64,
-                                         "bhyve",
+                                         "/usr/sbin/bhyve",
                                          NULL, 0, NULL)) == NULL)
         goto error;
 
