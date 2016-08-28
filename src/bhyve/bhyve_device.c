@@ -39,6 +39,9 @@ bhyveCollectPCIAddress(virDomainDefPtr def ATTRIBUTE_UNUSED,
                        void *opaque)
 {
     int ret = -1;
+    if (info->type == VIR_DOMAIN_DEVICE_ADDRESS_TYPE_DRIVE)
+        return 0;
+
     virDomainPCIAddressSetPtr addrs = opaque;
     virPCIDeviceAddressPtr addr = &info->addr.pci;
 

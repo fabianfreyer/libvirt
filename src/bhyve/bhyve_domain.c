@@ -24,12 +24,15 @@
 
 #include "bhyve_device.h"
 #include "bhyve_domain.h"
+#include "bhyve_capabilities.h"
 #include "viralloc.h"
 #include "virlog.h"
 
 #define VIR_FROM_THIS VIR_FROM_BHYVE
 
 VIR_LOG_INIT("bhyve.bhyve_domain");
+
+extern bhyveConnPtr bhyve_driver;
 
 static void *
 bhyveDomainObjPrivateAlloc(void)
@@ -72,12 +75,51 @@ bhyveDomainDefPostParse(virDomainDefPtr def,
 }
 
 static int
-bhyveDomainDeviceDefPostParse(virDomainDeviceDefPtr dev ATTRIBUTE_UNUSED,
-                              const virDomainDef *def ATTRIBUTE_UNUSED,
+bhyveDomainDiskDefAssignAddress(virDomainDiskDefPtr def,
+                                const virDomainDef *vmdef ATTRIBUTE_UNUSED)
+{
+    int idx = virDiskNameToIndex(def->dst);
+
+    if (idx < 0) {
+        virReportError(VIR_ERR_XML_ERROR,
+                       _("Unknown disk name '%s' and no address specified"),
+                       def->dst);
+        return -1;
+    }
+
+    switch (def->bus) {
+    case VIR_DOMAIN_DISK_BUS_SATA:
+        def->info.type = VIR_DOMAIN_DEVICE_ADDRESS_TYPE_DRIVE;
+
+        if ((bhyve_driver->bhyvecaps & BHYVE_CAP_AHCI32SLOT) != 0) {
+            VIR_WARN("32 slot");
+            def->info.addr.drive.controller = idx / 32;
+            def->info.addr.drive.unit = idx % 32;
+        } else {
+            def->info.addr.drive.controller = idx;
+            def->info.addr.drive.unit = 0;
+        }
+
+        def->info.addr.drive.bus = 0;
+        break;
+    }
+    return 0;
+}
+
+static int
+bhyveDomainDeviceDefPostParse(virDomainDeviceDefPtr dev,
+                              const virDomainDef *def,
                               virCapsPtr caps ATTRIBUTE_UNUSED,
                               unsigned int parseFlags ATTRIBUTE_UNUSED,
                               void *opaque ATTRIBUTE_UNUSED)
 {
+    if (dev->type == VIR_DOMAIN_DEVICE_DISK) {
+        virDomainDiskDefPtr disk = dev->data.disk;
+
+        if (disk->info.type == VIR_DOMAIN_DEVICE_ADDRESS_TYPE_NONE &&
+            bhyveDomainDiskDefAssignAddress(disk, def) < 0)
+            return -1;
+    }
     return 0;
 }
 
