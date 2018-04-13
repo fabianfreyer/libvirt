@@ -187,6 +187,9 @@ mymain(void)
     DO_TEST("memsize-human");
     DO_TEST_FAIL("memsize-fail");
     DO_TEST("custom-loader");
+    DO_TEST("loader-stdin-file");
+    DO_TEST("loader-stdin-oneline");
+    DO_TEST("loader-stdin-multiline");
     DO_TEST("bhyveload-custom");
     DO_TEST("bhyveload-vda");
     DO_TEST_FAIL("bhyveload-name-mismatch");

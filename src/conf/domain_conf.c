@@ -3037,6 +3037,8 @@ void virDomainDefFree(virDomainDefPtr def)
     VIR_FREE(def->os.bootloader);
     VIR_FREE(def->os.bootloaderArgs);
 
+    VIR_FREE(def->os.bootloaderStdin);
+
     virDomainClockDefClear(&def->clock);
 
     VIR_FREE(def->name);
@@ -18700,6 +18702,16 @@ virDomainDefParseXML(xmlDocPtr xml,
     def->os.bootloader = virXPathString("string(./bootloader)", ctxt);
     def->os.bootloaderArgs = virXPathString("string(./bootloader_args)", ctxt);
 
+    if ((def->os.bootloaderStdin = virXPathString("string(./bootloader_stdin/"
+                                                  "@file)", ctxt)))
+        def->os.bootloaderStdinSource = VIR_DOMAIN_BOOTLOADER_STDIN_FILE;
+    else if ((def->os.bootloaderStdin = virXPathString("string("
+                                                      "./bootloader_stdin)",
+                                                      ctxt)))
+        def->os.bootloaderStdinSource = VIR_DOMAIN_BOOTLOADER_STDIN_LITERAL;
+    else
+        def->os.bootloaderStdinSource = VIR_DOMAIN_BOOTLOADER_STDIN_NONE;
+
     tmp = virXPathString("string(./os/type[1])", ctxt);
     if (!tmp) {
         if (def->os.bootloader) {
@@ -26717,6 +26729,35 @@ virDomainDefFormatInternal(virDomainDefPtr def,
         virBufferEscapeString(buf,
                               "<bootloader_args>%s</bootloader_args>\n",
                               def->os.bootloaderArgs);
+
+        switch (def->os.bootloaderStdinSource) {
+        case VIR_DOMAIN_BOOTLOADER_STDIN_NONE:
+            break;
+        case VIR_DOMAIN_BOOTLOADER_STDIN_FILE:
+            virBufferEscapeString(buf, "<bootloader_stdin file=\"%s\"/>\n",
+                                  def->os.bootloaderStdin);
+            break;
+        case VIR_DOMAIN_BOOTLOADER_STDIN_LITERAL:
+            if (strchr(def->os.bootloaderStdin, '\n')
+                || strchr(def->os.bootloaderStdin, '<')
+                || strchr(def->os.bootloaderStdin, '>')
+                || strchr(def->os.bootloaderStdin, '&'))
+            {
+                virBufferEscapeString(buf,
+                                      "<bootloader_stdin><![CDATA[%s]]>"
+                                      "</bootloader_stdin>\n",
+                                      def->os.bootloaderStdin);
+            } else {
+                virBufferEscapeString(buf,
+                                      "<bootloader_stdin>%s"
+                                      "</bootloader_stdin>\n",
+                                      def->os.bootloaderStdin);
+            }
+            break;
+        /* coverity[dead_error_begin] */
+        case VIR_DOMAIN_BOOTLOADER_STDIN_LAST:
+            break;
+        }
     }
 
     virBufferAddLit(buf, "<os>\n");

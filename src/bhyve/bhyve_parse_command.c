@@ -124,6 +124,8 @@ static int
 bhyveCommandLineToArgv(const char *nativeConfig,
                       int *loader_argc,
                       char ***loader_argv,
+                      char **loader_stdin_buffer,
+                      char **loader_stdin_file,
                       int *bhyve_argc,
                       char ***bhyve_argv)
 {
@@ -138,6 +140,10 @@ bhyveCommandLineToArgv(const char *nativeConfig,
     size_t lines_alloc = 0;
     char **_bhyve_argv = NULL;
     char **_loader_argv = NULL;
+
+    virBuffer heredoc = VIR_BUFFER_INITIALIZER;
+    int in_heredoc = 0;
+    char *heredoc_delim = NULL;
 
     nativeConfig_unescaped = bhyveParseCommandLineUnescape(nativeConfig);
     if (nativeConfig_unescaped == NULL) {
@@ -178,6 +184,52 @@ bhyveCommandLineToArgv(const char *nativeConfig,
         char **arglist = NULL;
         size_t args_count = 0;
         size_t args_alloc = 0;
+        char *stdin_redir = NULL;
+
+        /* are we in a heredoc? */
+        if (in_heredoc) {
+            if (STRPREFIX(curr, heredoc_delim)) {
+                in_heredoc = 0;
+                *loader_stdin_buffer = virBufferContentAndReset(&heredoc);
+                continue;
+            }
+
+            if (in_heredoc++ == 1)
+                virBufferAsprintf(&heredoc, "%s", curr);
+            else
+                virBufferAsprintf(&heredoc, "\n%s", curr);
+
+            continue;
+        }
+
+        /* check if this line contains standard input redirection. */
+        if ((stdin_redir = strchr(curr, '<'))) {
+            if (STREQLEN(stdin_redir, "<<", 2)) {
+                *stdin_redir = '\0';
+                in_heredoc = 1;
+                heredoc_delim = stdin_redir + 2;
+
+                /* skip non-alphanumeric chars */
+                while (*heredoc_delim && !c_isalnum(*heredoc_delim))
+                    heredoc_delim ++;
+
+                if (!*heredoc_delim)
+                    goto error;
+
+                virBufferFreeAndReset(&heredoc);
+            } else {
+                /* file redirection */
+                *stdin_redir = '\0';
+                stdin_redir ++;
+
+                /* skip non-alphanumeric chars */
+                while (*stdin_redir && !c_isalnum(*stdin_redir))
+                    stdin_redir ++;
+
+                if (VIR_STRDUP(*loader_stdin_file, stdin_redir) != 1)
+                    goto error;
+            }
+        }
 
         /* iterate over each line, splitting on sequences of ' '. This code is
          * adapted from qemu/qemu_parse_command.c. */
@@ -254,12 +306,16 @@ bhyveCommandLineToArgv(const char *nativeConfig,
     if (!(*bhyve_argv = _bhyve_argv))
         goto error;
 
+    if (in_heredoc)
+        goto error;
+
     virStringListFree(lines);
     return 0;
 
  error:
     VIR_FREE(_loader_argv);
     VIR_FREE(_bhyve_argv);
+    virBufferFreeAndReset(&heredoc);
     virStringListFree(lines);
     return -1;
 }
@@ -869,6 +925,8 @@ bhyveParseCommandLineString(const char* nativeConfig,
     char **bhyve_argv = NULL;
     int loader_argc = 0;
     char **loader_argv = NULL;
+    char *loader_stdin_file = NULL;
+    char *loader_stdin_buffer = NULL;
 
     if (!(def = virDomainDefNew()))
         goto cleanup;
@@ -887,10 +945,19 @@ bhyveParseCommandLineString(const char* nativeConfig,
 
     if (bhyveCommandLineToArgv(nativeConfig,
                                &loader_argc, &loader_argv,
+                               &loader_stdin_buffer, &loader_stdin_file,
                                &bhyve_argc, &bhyve_argv)) {
         virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
                        _("Failed to convert the command string to argv-lists"));
         goto error;
+    }
+
+    if (loader_stdin_file && !loader_stdin_buffer) {
+        def->os.bootloaderStdinSource = VIR_DOMAIN_BOOTLOADER_STDIN_FILE;
+        def->os.bootloaderStdin = loader_stdin_file;
+    } else if (loader_stdin_buffer && !loader_stdin_file) {
+        def->os.bootloaderStdinSource = VIR_DOMAIN_BOOTLOADER_STDIN_LITERAL,
+        def->os.bootloaderStdin = loader_stdin_buffer;
     }
 
     if (bhyveParseBhyveCommandLine(def, xmlopt, caps, bhyve_argc, bhyve_argv))
@@ -906,9 +973,12 @@ bhyveParseCommandLineString(const char* nativeConfig,
  cleanup:
     virStringListFree(loader_argv);
     virStringListFree(bhyve_argv);
+
     return def;
  error:
     virDomainDefFree(def);
+    VIR_FREE(loader_stdin_buffer);
+    VIR_FREE(loader_stdin_file);
     def = NULL;
     goto cleanup;
 }

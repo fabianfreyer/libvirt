@@ -245,6 +245,11 @@
 ...
 &lt;bootloader&gt;/usr/bin/pygrub&lt;/bootloader&gt;
 &lt;bootloader_args&gt;--append single&lt;/bootloader_args&gt;
+&lt;bootloader_stdin&gt;&lt;![CDATA[
+kernel (hd)/path/to/kernel
+initrd (host)/path/to/initrd
+boot
+]]&gt;
 ...</pre>
 
     <dl>
@@ -259,6 +264,20 @@
         command line arguments to be passed to the bootloader.
         <span class="since">Since 0.2.3</span>
         </dd>
+      <dt><code>bootloader_stdin</code></dt>
+      <dd>The optional <code>bootloader_stdin</code> element specifies
+        standard input to be passed to the bootloader. To pass multiple
+        lines of standard input to the bootloader, wrap the content in
+        a CDATA tag. Instead of specifying the standard input in the
+        domain XML, the path to a file to be read may be given using the
+        <code>file</code> attribute:
+<pre>
+...
+&lt;bootloader_stdin file="/path/to/some/file"/&gt;
+...
+</pre>
+        <span class="since">Since 4.3.0 (bhyve only)</span>
+      </dd>
 
     </dl>
 

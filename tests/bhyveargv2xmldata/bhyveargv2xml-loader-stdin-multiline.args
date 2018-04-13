@@ -1,0 +1,13 @@
+/usr/bin/custom-loader \
+-s ome \
+--args << END_OF_THIS_HEREDOC
+some
+standard input
+here
+END_OF_THIS_HEREDOC
+/usr/sbin/bhyve \
+-c 1 \
+-m 214 \
+-H \
+-P \
+-s 0:0,hostbridge bhyve

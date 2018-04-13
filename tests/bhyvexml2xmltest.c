@@ -98,6 +98,9 @@ mymain(void)
     DO_TEST_DIFFERENT("grub-bootorder");
     DO_TEST_DIFFERENT("grub-bootorder2");
     DO_TEST_DIFFERENT("grub-defaults");
+    DO_TEST_DIFFERENT("grub-stdin-file");
+    DO_TEST_DIFFERENT("grub-stdin-oneline");
+    DO_TEST_DIFFERENT("grub-stdin-multiline");
     DO_TEST_DIFFERENT("localtime");
     DO_TEST_DIFFERENT("macaddr");
     DO_TEST_DIFFERENT("metadata");

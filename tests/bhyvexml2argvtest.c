@@ -188,6 +188,9 @@ mymain(void)
     DO_TEST("grub-defaults");
     DO_TEST("grub-bootorder");
     DO_TEST("grub-bootorder2");
+    DO_TEST("grub-stdin-file");
+    DO_TEST("grub-stdin-oneline");
+    DO_TEST("grub-stdin-multiline");
     DO_TEST("bhyveload-bootorder");
     DO_TEST("bhyveload-bootorder1");
     DO_TEST_FAILURE("bhyveload-bootorder2");

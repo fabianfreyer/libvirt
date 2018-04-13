@@ -1211,6 +1211,16 @@
           <text/>
         </element>
       </optional>
+      <optional>
+        <choice>
+          <element name="bootloader_stdin">
+            <text/>
+          </element>
+          <element name="bootloader_stdin">
+            <attribute name="file"/>
+          </element>
+        </choice>
+      </optional>
     </interleave>
   </define>
   <define name="osbootkernel">

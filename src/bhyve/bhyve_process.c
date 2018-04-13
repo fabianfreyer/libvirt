@@ -113,6 +113,7 @@ virBhyveProcessStart(virConnectPtr conn,
     bhyveDomainObjPrivatePtr priv = vm->privateData;
     int ret = -1, rc;
     virCapsPtr caps = NULL;
+    int stdinfd = -1;
 
     if (virAsprintf(&logfile, "%s/%s.log",
                     BHYVE_LOG_DIR, vm->def->name) < 0)
@@ -173,6 +174,26 @@ virBhyveProcessStart(virConnectPtr conn,
         if (!(load_cmd = virBhyveProcessBuildLoadCmd(conn, vm->def, devmap_file,
                                                      &devicemap)))
             goto cleanup;
+
+        switch (vm->def->os.bootloaderStdinSource) {
+        case VIR_DOMAIN_BOOTLOADER_STDIN_NONE:
+            break;
+        case VIR_DOMAIN_BOOTLOADER_STDIN_FILE:
+            if ((stdinfd = open(vm->def->os.bootloaderStdin, O_RDONLY)) < 0) {
+                virReportSystemError(errno, _("Failed to open '%s'"),
+                                     vm->def->os.bootloaderStdin);
+                goto cleanup;
+            }
+            virCommandSetInputFD(load_cmd, stdinfd);
+            break;
+        case VIR_DOMAIN_BOOTLOADER_STDIN_LITERAL:
+            virCommandSetInputBuffer(load_cmd, vm->def->os.bootloaderStdin);
+            break;
+        /* coverity[dead_error_begin] */
+        case VIR_DOMAIN_BOOTLOADER_STDIN_LAST:
+            break;
+        }
+
         virCommandSetOutputFD(load_cmd, &logfd);
         virCommandSetErrorFD(load_cmd, &logfd);
 
@@ -252,6 +273,7 @@ virBhyveProcessStart(virConnectPtr conn,
     virCommandFree(load_cmd);
     virCommandFree(cmd);
     VIR_FREE(logfile);
+    VIR_FORCE_CLOSE(stdinfd);
     VIR_FORCE_CLOSE(logfd);
     return ret;
 }

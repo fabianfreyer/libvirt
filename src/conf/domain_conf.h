@@ -1897,6 +1897,15 @@ struct _virDomainOSEnv {
     char *value;
 };
 
+/* Bootloader standard input source */
+typedef enum {
+    VIR_DOMAIN_BOOTLOADER_STDIN_NONE = 0,
+    VIR_DOMAIN_BOOTLOADER_STDIN_FILE,
+    VIR_DOMAIN_BOOTLOADER_STDIN_LITERAL,
+
+    VIR_DOMAIN_BOOTLOADER_STDIN_LAST
+} virDomainBootloaderStdinSource;
+
 typedef struct _virDomainOSDef virDomainOSDef;
 typedef virDomainOSDef *virDomainOSDefPtr;
 struct _virDomainOSDef {
@@ -1923,6 +1932,8 @@ struct _virDomainOSDef {
     virDomainLoaderDefPtr loader;
     char *bootloader;
     char *bootloaderArgs;
+    virDomainBootloaderStdinSource bootloaderStdinSource;
+    char *bootloaderStdin;
     int smbios_mode;
 
     virDomainBIOSDef bios;

@@ -743,6 +743,16 @@ bhyveConnectDomainXMLToNative(virConnectPtr conn,
             goto cleanup;
 
         virBufferAdd(&buf, virCommandToString(loadcmd), -1);
+
+        if (def->os.bootloaderStdinSource == VIR_DOMAIN_BOOTLOADER_STDIN_FILE)
+            virBufferEscapeString(&buf, " < %s", def->os.bootloaderStdin);
+        else if (def->os.bootloaderStdinSource
+                 == VIR_DOMAIN_BOOTLOADER_STDIN_LITERAL) {
+            virBufferEscapeString(&buf, " << END_LOADER_STDIN\n"
+                                        "%s\nEND_LOADER_STDIN",
+                                        def->os.bootloaderStdin);
+        }
+
         virBufferAddChar(&buf, '\n');
     }
 
