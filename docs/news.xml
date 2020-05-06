@@ -44,6 +44,15 @@
 <libvirt>
   <release version="v6.4.0" date="unreleased">
     <section title="New features">
+      <change>
+        <summary>
+          bhyve: support setting the framebuffer resolution
+        </summary>
+        <description>
+          libvirt can now set the framebuffer's "w" and "h" parameters
+          using the <code>resolution</code> element.
+        </description>
+      </change>
     </section>
     <section title="Improvements">
     </section>

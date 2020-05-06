@@ -469,6 +469,9 @@ bhyveBuildGraphicsArgStr(const virDomainDef *def,
         goto error;
     }
 
+    if (video->res)
+        virBufferAsprintf(&opt, ",w=%d,h=%d", video->res->x, video->res->y);
+
     if (video->driver)
         virBufferAsprintf(&opt, ",vga=%s",
                           virDomainVideoVGAConfTypeToString(video->driver->vgaconf));

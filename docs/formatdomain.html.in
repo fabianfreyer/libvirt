@@ -7543,7 +7543,7 @@ qemu-kvm -net nic,model=? /dev/null
         element may also have an optional <code>resolution</code> sub-element.
         The <code>resolution</code> element has attributes <code>x</code> and
         <code>y</code> to set the minimum resolution for the video device. This
-        sub-element is valid for model types "vga", "qxl", "bochs", and
+        sub-element is valid for model types "vga", "qxl", "bochs", "gop", and
         "virtio".
         </p>
       </dd>
