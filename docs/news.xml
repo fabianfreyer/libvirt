@@ -46,6 +46,17 @@
     <section title="New features">
       <change>
         <summary>
+          bhyve: support VNC password authentication
+        </summary>
+        <description>
+          libvirt can now probe whether the bhyve binary supports
+          VNC password authentication. In case it does, a VNC password
+          can now be passed using the <code>passwd</code> attribute on
+          the <code>graphics</code> element.
+        </description>
+      </change>
+      <change>
+        <summary>
           bhyve: support setting the framebuffer resolution
         </summary>
         <description>

@@ -77,7 +77,7 @@ testCompareXMLToArgvFiles(const char *xmlfile,
         goto fail;
     }
 
-    if (vmdef && !(actualxml = virDomainDefFormat(vmdef, driver.xmlopt, 0)))
+    if (vmdef && !(actualxml = virDomainDefFormat(vmdef, driver.xmlopt, VIR_DOMAIN_DEF_FORMAT_SECURE)))
         goto fail;
 
     if (vmdef && virTestCompareToFile(actualxml, xmlfile) < 0)
@@ -200,6 +200,7 @@ mymain(void)
     DO_TEST("vnc-vga-off");
     DO_TEST("vnc-vga-io");
     DO_TEST("vnc-resolution");
+    DO_TEST("vnc-password");
 
     virObjectUnref(driver.caps);
     virObjectUnref(driver.xmlopt);

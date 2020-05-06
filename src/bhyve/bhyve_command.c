@@ -425,17 +425,6 @@ bhyveBuildGraphicsArgStr(const virDomainDef *def,
             goto error;
         }
 
-        if (graphics->data.vnc.auth.passwd) {
-            virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
-                           _("vnc password auth not supported"));
-            goto error;
-        } else {
-             /* Bhyve doesn't support VNC Auth yet, so print a warning about
-              * unauthenticated VNC sessions */
-             VIR_WARN("%s", _("Security warning: currently VNC auth is not"
-                              " supported."));
-        }
-
         if (glisten->address) {
             escapeAddr = strchr(glisten->address, ':') != NULL;
             if (escapeAddr)
@@ -467,6 +456,28 @@ bhyveBuildGraphicsArgStr(const virDomainDef *def,
     default:
         virReportEnumRangeError(virDomainGraphicsListenType, glisten->type);
         goto error;
+    }
+
+    if (graphics->data.vnc.auth.passwd) {
+        if (!(bhyveDriverGetBhyveCaps(driver) & BHYVE_CAP_VNC_PASSWORD)) {
+            virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
+                           _("VNC Passwort authentication not supported "
+                             "by bhyve"));
+            goto error;
+        }
+
+        if (strchr(graphics->data.vnc.auth.passwd, ',')) {
+            virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
+                           _("Password may not contain ',' character"));
+            goto error;
+        }
+
+        virBufferAsprintf(&opt, ",password=%s", graphics->data.vnc.auth.passwd);
+    } else {
+        if (!(bhyveDriverGetBhyveCaps(driver) & BHYVE_CAP_VNC_PASSWORD))
+            VIR_WARN("%s", _("Security warning: VNC auth is not supported."));
+        else
+            VIR_WARN("%s", _("Security warning: VNC is used without authentication."));
     }
 
     if (video->res)
